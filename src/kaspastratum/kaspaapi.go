@@ -10,6 +10,7 @@ import (
 	"github.com/onemorebsmith/kaspastratum/src/gostratum"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+    "db"
 )
 
 type KaspaApi struct {
@@ -19,13 +20,11 @@ type KaspaApi struct {
 	kaspad        *rpcclient.RPCClient
 	connected     bool
 }
-
 func NewKaspaAPI(address string, blockWaitTime time.Duration, logger *zap.SugaredLogger) (*KaspaApi, error) {
 	client, err := rpcclient.NewRPCClient(address)
 	if err != nil {
 		return nil, err
 	}
-
 	return &KaspaApi{
 		address:       address,
 		blockWaitTime: blockWaitTime,
@@ -34,7 +33,6 @@ func NewKaspaAPI(address string, blockWaitTime time.Duration, logger *zap.Sugare
 		connected:     true,
 	}, nil
 }
-
 func (ks *KaspaApi) Start(ctx context.Context, blockCb func()) {
 	ks.waitForSync(true)
 	go ks.startBlockTemplateListener(ctx, blockCb)
@@ -60,6 +58,18 @@ func (ks *KaspaApi) startStatsThread(ctx context.Context) {
 				continue
 			}
 			RecordNetworkStats(response.NetworkHashesPerSecond, dagResponse.BlockCount, dagResponse.Difficulty)
+//	    db, err := sql.Open("postgres", connectionString)
+        rows,err := db.DB.Query("select id from poolstats order by id desc limit 1")
+        checkError(err)
+        defer rows.Close()
+        var idd int
+        for rows.Next() {
+           	err=rows.Scan(&idd)
+        	checkError(err)
+        }
+        _,err=db.DB.Exec("update poolstats set blockheight=$1, networkdifficulty=$2, networkhashrate=$3 where id>=$4", dagResponse.BlockCount, dagResponse.Difficulty, response.NetworkHashesPerSecond, idd)
+        checkError(err)
+//        defer db.Close()
 		}
 	}
 }
@@ -91,6 +101,7 @@ func (s *KaspaApi) waitForSync(verbose bool) error {
 		}
 		s.logger.Warn("Kaspa is not synced, waiting for sync before starting bridge")
 		time.Sleep(5 * time.Second)
+		break
 	}
 	if verbose {
 		s.logger.Info("kaspad synced, starting server")

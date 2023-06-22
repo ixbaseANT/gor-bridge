@@ -13,6 +13,12 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
+// Diff magic numbers:
+// these are a pair, if you change one you need to change the other
+const diffPower = 34
+const shareValue = float64(2<<(diffPower-1)) / float64(1000000000) // in GH/s
+
+
 // static value definitions to avoid overhead in diff translations
 var (
 	maxTarget = big.NewFloat(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)

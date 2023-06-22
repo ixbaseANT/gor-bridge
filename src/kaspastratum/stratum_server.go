@@ -6,7 +6,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"time"
-
 	"github.com/mattn/go-colorable"
 	"github.com/onemorebsmith/kaspastratum/src/gostratum"
 	"go.uber.org/zap"
@@ -26,6 +25,7 @@ type BridgeConfig struct {
 	BlockWaitTime   time.Duration `yaml:"block_wait_time"`
 	MinShareDiff    uint          `yaml:"min_share_diff"`
 	ExtranonceSize  uint          `yaml:"extranonce_size"`
+	PoolAddress     string        `yaml:"pool_address"`
 }
 
 func configureZap(cfg BridgeConfig) (*zap.SugaredLogger, func()) {

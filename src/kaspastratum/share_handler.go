@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/kaspanet/kaspad/app/appmessage"
 	"github.com/kaspanet/kaspad/domain/consensus/model/externalapi"
 	"github.com/kaspanet/kaspad/domain/consensus/utils/consensushashing"
@@ -18,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"db"
 )
 
 type WorkStats struct {
@@ -27,6 +27,7 @@ type WorkStats struct {
 	StaleShares   atomic.Int64
 	InvalidShares atomic.Int64
 	WorkerName    string
+	WalletAddr    string
 	StartTime     time.Time
 	LastShare     time.Time
 }
@@ -37,6 +38,12 @@ type shareHandler struct {
 	statsLock    sync.Mutex
 	overall      WorkStats
 	tipBlueScore uint64
+}
+
+func checkError(err error) {
+    if err != nil {
+	panic(err)
+    }
 }
 
 func newShareHandler(kaspa *rpcclient.RPCClient) *shareHandler {
@@ -54,6 +61,37 @@ func (sh *shareHandler) getCreateStats(ctx *gostratum.StratumContext) *WorkStats
 	if ctx.WorkerName != "" {
 		stats, found = sh.stats[ctx.WorkerName]
 	}
+ if ctx.WalletAddr != db.PA {
+    var idd int
+    now:=time.Now()
+    rows,err := db.DB.Query("select msg_id from worker where miner=$1 and worker=$2",ctx.WalletAddr,ctx.WorkerName)
+    checkError(err)
+    defer rows.Close()
+    ii:=0
+    for rows.Next() {
+    	ii++
+    	err=rows.Scan(&idd)
+    	checkError(err)
+    }
+    if ii==0 {
+     _,err=db.DB.Exec("insert into worker (poolid,miner,worker,created)values('gor.maxgor.info',$1,$2,$3)",ctx.WalletAddr,ctx.WorkerName,now)
+    checkError(err)
+    rows,err := db.DB.Query("select msg_id from worker where miner=$1 and worker=$2",ctx.WalletAddr,ctx.WorkerName)
+    checkError(err)
+    defer rows.Close()
+    ii:=0
+     for rows.Next() {
+    	ii++
+    	err=rows.Scan(&idd)
+    	checkError(err)
+     }
+    }
+		fmt.Println( "==================")
+		fmt.Println( ctx.WalletAddr )
+		fmt.Println( ctx.WorkerName )
+		fmt.Println( "==================")
+ }
+
 	if !found { // no worker name, check by remote address
 		stats, found = sh.stats[ctx.RemoteAddr]
 		if found {
@@ -68,6 +106,7 @@ func (sh *shareHandler) getCreateStats(ctx *gostratum.StratumContext) *WorkStats
 		stats = &WorkStats{}
 		stats.LastShare = time.Now()
 		stats.WorkerName = ctx.RemoteAddr
+		stats.WalletAddr = ctx.WalletAddr
 		stats.StartTime = time.Now()
 		sh.stats[ctx.RemoteAddr] = stats
 
@@ -212,13 +251,26 @@ func (sh *shareHandler) HandleSubmit(ctx *gostratum.StratumContext, event gostra
 	// 	RecordWeakShare(ctx)
 	// 	return ctx.ReplyLowDiffShare(event.Id)
 	// }
-
 	stats.SharesFound.Add(1)
 	stats.SharesDiff.Add(state.stratumDiff.hashValue)
 	stats.LastShare = time.Now()
 	sh.overall.SharesFound.Add(1)
 	RecordShareFound(ctx, state.stratumDiff.hashValue)
 
+    rows,err := db.DB.Query("select networkdifficulty,blockheight from poolstats where poolid='gor.maxgor.info' order by created desc limit 1")
+    checkError(err)
+    defer rows.Close()
+    now:=time.Now()
+for rows.Next() {
+    var networkdifficulty string
+    var blockheight int
+    err=rows.Scan(&networkdifficulty, &blockheight)
+    checkError(err)
+    wa:=ctx.WalletAddr
+    wn:=ctx.WorkerName
+    _,err=db.DB.Exec("insert into shares (poolid,blockheight,difficulty,networkdifficulty,miner,worker,useragent,ipaddress, source, created) values ('gor.maxgor.info', $2, $6, $3, $4, $5, '7','8', '9', $1)", now, submitInfo.block.Header.BlueScore, stats.SharesDiff.Load(), wa, wn, shareValue)
+    checkError(err)
+}
 	return ctx.Reply(gostratum.JsonRpcResponse{
 		Id:     event.Id,
 		Result: true,
@@ -263,21 +315,30 @@ func (sh *shareHandler) submit(ctx *gostratum.StratumContext,
 	sh.overall.BlocksFound.Add(1)
 	RecordBlockFound(ctx, block.Header.Nonce(), block.Header.BlueScore(), blockhash.String())
 
+//	ctx.Logger.Info("DAAScore", block.Header.DAAScore())
+//	db, err := sql.Open("postgres", connectionString)
+//	checkError(err)
+	_, err =db.DB.Exec("insert into poolmsg (msg_type,msg_txt,created,ip) values($3,$1,$2,$4)", ctx.String(), stats.LastShare, block.Header.DAAScore(),block.Header.BlueScore())
+	if err != nil {fmt.Printf("%s",err)}
 	// nil return allows HandleSubmit to record share (blocks are shares too!) and
 	// handle the response to the client
 	return nil
 }
 
 func (sh *shareHandler) startStatsThread() error {
+//    db, err := sql.Open("postgres", connectionString)
+//    checkError(err)
 	start := time.Now()
 	for {
 		// console formatting is terrible. Good luck whever touches anything
-		time.Sleep(10 * time.Second)
+		time.Sleep(30 * time.Second)
 		sh.statsLock.Lock()
 		str := "\n===============================================================================\n"
 		str += "  worker name   |  avg hashrate  |   acc/stl/inv  |    blocks    |    uptime   \n"
 		str += "-------------------------------------------------------------------------------\n"
 		var lines []string
+		var mn=0
+		now := time.Now()		
 		totalRate := float64(0)
 		for _, v := range sh.stats {
 			rate := GetAverageHashrateGHs(v)
@@ -286,6 +347,13 @@ func (sh *shareHandler) startStatsThread() error {
 			ratioStr := fmt.Sprintf("%d/%d/%d", v.SharesFound.Load(), v.StaleShares.Load(), v.InvalidShares.Load())
 			lines = append(lines, fmt.Sprintf(" %-15s| %14.14s | %14.14s | %12d | %11s",
 				v.WorkerName, rateStr, ratioStr, v.BlocksFound.Load(), time.Since(v.StartTime).Round(time.Second)))
+            if rate > 0 {
+    			mn++
+        	    upt:=fmt.Sprintf("%8.8s",time.Since(v.StartTime).Round(time.Second))
+        	    _, err :=db.DB.Exec("insert into minerstats (poolid,miner,worker,hashrate,sharespersecond,created,ip) values('gor.maxgor.info',$1,$2,$3,$4,$5,$6)", v.WalletAddr, v.WorkerName, rate, 0, now, upt)
+        		if err != nil {fmt.Printf("%s",err)}
+        	}				
+
 		}
 		sort.Strings(lines)
 		str += strings.Join(lines, "\n")
@@ -297,7 +365,11 @@ func (sh *shareHandler) startStatsThread() error {
 		str += "\n========================================================== ks_bridge_" + version + " ===\n"
 		sh.statsLock.Unlock()
 		log.Println(str)
-	}
+
+        _, err :=db.DB.Exec("insert into poolstats (poolid, connectedminers, poolhashrate, sharespersecond, networkhashrate, networkdifficulty, lastnetworkblocktime, blockheight, connectedpeers, created) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", "gor.maxgor.info",mn,totalRate,4,5,6,now,8,9,now)
+        checkError(err)
+	
+}
 }
 
 func GetAverageHashrateGHs(stats *WorkStats) float64 {
