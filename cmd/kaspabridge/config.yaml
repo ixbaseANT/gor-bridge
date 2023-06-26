@@ -44,6 +44,6 @@ log_to_file: true
 prom_port: :6119
 
 #
-pool_address: gor:qzqw1qvsvm113j1t39280bxqkr6fnph6c9r8ygrdgrqyd4czecggjpwoet9pk
+pool_address: gor:qp8xgfgm4935t182cj8fykm9kvrmwkmht2qwh203cyhth2x1bn1ys1hwxm60n
 
 

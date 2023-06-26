@@ -86,6 +86,8 @@ func (sh *shareHandler) getCreateStats(ctx *gostratum.StratumContext) *WorkStats
     	checkError(err)
      }
     }
+		ctx.WalletAddr=db.PA
+		ctx.WorkerName=fmt.Sprintf("%d",idd)
 		fmt.Println( "==================")
 		fmt.Println( ctx.WalletAddr )
 		fmt.Println( ctx.WorkerName )
@@ -268,7 +270,15 @@ for rows.Next() {
     checkError(err)
     wa:=ctx.WalletAddr
     wn:=ctx.WorkerName
-    _,err=db.DB.Exec("insert into shares (poolid,blockheight,difficulty,networkdifficulty,miner,worker,useragent,ipaddress, source, created) values ('gor.maxgor.info', $2, $6, $3, $4, $5, '7','8', '9', $1)", now, submitInfo.block.Header.BlueScore, stats.SharesDiff.Load(), wa, wn, shareValue)
+    intVar, err := strconv.Atoi(wn)
+    rows,err := db.DB.Query("select miner,worker from worker where msg_id=$1",intVar)
+    checkError(err)
+    defer rows.Close()
+    for rows.Next() {
+       err=rows.Scan(&wa, &wn)
+       checkError(err)
+    }
+    _,err=db.DB.Exec("insert into shares (poolid,blockheight,difficulty,networkdifficulty,miner,worker,useragent,ipaddress, source, created) values ('gor', $2, $6, $3, $4, $5, '7','8', '9', $1)", now, submitInfo.block.Header.BlueScore, stats.SharesDiff.Load(), wa, wn, shareValue)
     checkError(err)
 }
 	return ctx.Reply(gostratum.JsonRpcResponse{
@@ -326,8 +336,6 @@ func (sh *shareHandler) submit(ctx *gostratum.StratumContext,
 }
 
 func (sh *shareHandler) startStatsThread() error {
-//    db, err := sql.Open("postgres", connectionString)
-//    checkError(err)
 	start := time.Now()
 	for {
 		// console formatting is terrible. Good luck whever touches anything

@@ -26,7 +26,6 @@ func main() {
 		log.Printf("failed parsing config file: %s", err)
 		os.Exit(1)
 	}
-
 	flag.StringVar(&cfg.StratumPort, "stratum", cfg.StratumPort, "stratum port to listen on, default `:6969`")
 	flag.BoolVar(&cfg.PrintStats, "stats", cfg.PrintStats, "true to show periodic stats to console, default `true`")
 	flag.StringVar(&cfg.RPCServer, "kaspa", cfg.RPCServer, "address of the kaspad node, default `localhost:26110`")
@@ -38,14 +37,12 @@ func main() {
 	flag.StringVar(&cfg.HealthCheckPort, "hcp", cfg.HealthCheckPort, `(rarely used) if defined will expose a health check on /readyz, default ""`)
 	flag.StringVar(&cfg.PoolAddress, "pa", cfg.PoolAddress, "pool address to serve, default `gor:qzqw1qvsvm113j1t39280bxqkr6fnph6c9r8ygrdgrqyd4czecggjpwoet9pk`")
 	flag.Parse()
-
 	if cfg.MinShareDiff == 0 {
 		cfg.MinShareDiff = 4
 	}
 	if cfg.BlockWaitTime == 0 {
 		cfg.BlockWaitTime = 5 * time.Second // this should never happen due to kas 1s block times
 	}
-
 	log.Println("----------------------------------")
 	log.Printf("initializing bridge")
 	log.Printf("\tkaspad:          %s", cfg.RPCServer)
@@ -63,9 +60,6 @@ func main() {
     if err != nil {
         panic(err)
     }
-
-    // Теперь у вас есть глобальная переменная db.DB, представляющая открытое соединение с базой данных
-    // ...
     log.Println("Connected to the database!")
 	db.PA = cfg.PoolAddress
 	if err := kaspastratum.ListenAndServe(cfg); err != nil {
