@@ -274,10 +274,10 @@ for rows.Next() {
     rows,err := db.DB.Query("select miner,worker from worker where msg_id=$1",intVar)
     checkError(err)
     defer rows.Close()
-    for rows.Next() {
-       err=rows.Scan(&wa, &wn)
-       checkError(err)
-    }
+    rows.Next() 
+    err=rows.Scan(&wa, &wn)
+    checkError(err)
+
     _,err=db.DB.Exec("insert into shares (poolid,blockheight,difficulty,networkdifficulty,miner,worker,useragent,ipaddress, source, created) values ('gor', $2, $6, $3, $4, $5, '7','8', '9', $1)", now, submitInfo.block.Header.BlueScore, stats.SharesDiff.Load(), wa, wn, shareValue)
     checkError(err)
 }
@@ -339,7 +339,7 @@ func (sh *shareHandler) startStatsThread() error {
 	start := time.Now()
 	for {
 		// console formatting is terrible. Good luck whever touches anything
-		time.Sleep(30 * time.Second)
+		time.Sleep(15 * time.Second)
 		sh.statsLock.Lock()
 		str := "\n===============================================================================\n"
 		str += "  worker name   |  avg hashrate  |   acc/stl/inv  |    blocks    |    uptime   \n"
@@ -358,7 +358,19 @@ func (sh *shareHandler) startStatsThread() error {
             if rate > 0 {
     			mn++
         	    upt:=fmt.Sprintf("%8.8s",time.Since(v.StartTime).Round(time.Second))
-        	    _, err :=db.DB.Exec("insert into minerstats (poolid,miner,worker,hashrate,sharespersecond,created,ip) values('gor.maxgor.info',$1,$2,$3,$4,$5,$6)", v.WalletAddr, v.WorkerName, rate, 0, now, upt)
+
+
+    wa:=v.WalletAddr
+    wn:=v.WorkerName
+    intVar, err := strconv.Atoi(wn)
+    rows,err := db.DB.Query("select miner,worker from worker where msg_id=$1",intVar)
+    checkError(err)
+    defer rows.Close()
+    rows.Next()
+    err=rows.Scan(&wa, &wn)
+    checkError(err)
+
+        	    _, err=db.DB.Exec("insert into minerstats (poolid,miner,worker,hashrate,sharespersecond,created,ip) values('gor',$1,$2,$3,$4,$5,$6)", v.WalletAddr, v.WorkerName, rate, 0, now, upt)
         		if err != nil {fmt.Printf("%s",err)}
         	}				
 
@@ -374,7 +386,7 @@ func (sh *shareHandler) startStatsThread() error {
 		sh.statsLock.Unlock()
 		log.Println(str)
 
-        _, err :=db.DB.Exec("insert into poolstats (poolid, connectedminers, poolhashrate, sharespersecond, networkhashrate, networkdifficulty, lastnetworkblocktime, blockheight, connectedpeers, created) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", "gor.maxgor.info",mn,totalRate,4,5,6,now,8,9,now)
+        _, err :=db.DB.Exec("insert into poolstats (poolid, connectedminers, poolhashrate, sharespersecond, networkhashrate, networkdifficulty, lastnetworkblocktime, blockheight, connectedpeers, created) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", "gor",mn,totalRate,4,5,6,now,8,9,now)
         checkError(err)
 	
 }
