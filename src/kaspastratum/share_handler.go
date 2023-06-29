@@ -65,25 +65,35 @@ func (sh *shareHandler) getCreateStats(ctx *gostratum.StratumContext) *WorkStats
     var idd int
     now:=time.Now()
     rows,err := db.DB.Query("select msg_id from worker where miner=$1 and worker=$2",ctx.WalletAddr,ctx.WorkerName)
-    checkError(err)
+    if err != nil {
+	panic(err)
+    }
     defer rows.Close()
     ii:=0
     for rows.Next() {
     	ii++
     	err=rows.Scan(&idd)
-    	checkError(err)
+    if err != nil {
+	panic(err)
+    }
     }
     if ii==0 {
      _,err=db.DB.Exec("insert into worker (poolid,miner,worker,created)values('gor.maxgor.info',$1,$2,$3)",ctx.WalletAddr,ctx.WorkerName,now)
-    checkError(err)
+    if err != nil {
+	panic(err)
+    }
     rows,err := db.DB.Query("select msg_id from worker where miner=$1 and worker=$2",ctx.WalletAddr,ctx.WorkerName)
-    checkError(err)
+    if err != nil {
+	panic(err)
+    }
     defer rows.Close()
     ii:=0
      for rows.Next() {
     	ii++
     	err=rows.Scan(&idd)
-    	checkError(err)
+    if err != nil {
+	panic(err)
+    }
      }
     }
 		ctx.WalletAddr=db.PA
@@ -260,26 +270,36 @@ func (sh *shareHandler) HandleSubmit(ctx *gostratum.StratumContext, event gostra
 	RecordShareFound(ctx, state.stratumDiff.hashValue)
 
     rows,err := db.DB.Query("select networkdifficulty,blockheight from poolstats where poolid='gor.maxgor.info' order by created desc limit 1")
-    checkError(err)
+    if err != nil {
+	panic(err)
+    }
     defer rows.Close()
     now:=time.Now()
 for rows.Next() {
     var networkdifficulty string
     var blockheight int
     err=rows.Scan(&networkdifficulty, &blockheight)
-    checkError(err)
+    if err != nil {
+	panic(err)
+    }
     wa:=ctx.WalletAddr
     wn:=ctx.WorkerName
     intVar, err := strconv.Atoi(wn)
     rows,err := db.DB.Query("select miner,worker from worker where msg_id=$1",intVar)
-    checkError(err)
+    if err != nil {
+	panic(err)
+    }
     defer rows.Close()
     rows.Next() 
     err=rows.Scan(&wa, &wn)
-    checkError(err)
+    if err != nil {
+	panic(err)
+    }
 
     _,err=db.DB.Exec("insert into shares (poolid,blockheight,difficulty,networkdifficulty,miner,worker,useragent,ipaddress, source, created) values ('gor', $2, $6, $3, $4, $5, '7','8', '9', $1)", now, submitInfo.block.Header.BlueScore, stats.SharesDiff.Load(), wa, wn, shareValue)
-    checkError(err)
+    if err != nil {
+	panic(err)
+    }
 }
 	return ctx.Reply(gostratum.JsonRpcResponse{
 		Id:     event.Id,
@@ -326,8 +346,6 @@ func (sh *shareHandler) submit(ctx *gostratum.StratumContext,
 	RecordBlockFound(ctx, block.Header.Nonce(), block.Header.BlueScore(), blockhash.String())
 
 //	ctx.Logger.Info("DAAScore", block.Header.DAAScore())
-//	db, err := sql.Open("postgres", connectionString)
-//	checkError(err)
 	_, err =db.DB.Exec("insert into poolmsg (msg_type,msg_txt,created,ip) values($3,$1,$2,$4)", ctx.String(), stats.LastShare, block.Header.DAAScore(),block.Header.BlueScore())
 	if err != nil {fmt.Printf("%s",err)}
 	// nil return allows HandleSubmit to record share (blocks are shares too!) and
@@ -364,11 +382,15 @@ func (sh *shareHandler) startStatsThread() error {
     wn:=v.WorkerName
     intVar, err := strconv.Atoi(wn)
     rows,err := db.DB.Query("select miner,worker from worker where msg_id=$1",intVar)
-    checkError(err)
+    if err != nil {
+	panic(err)
+    }
     defer rows.Close()
     rows.Next()
     err=rows.Scan(&wa, &wn)
-    checkError(err)
+    if err != nil {
+	panic(err)
+    }
 
         	    _, err=db.DB.Exec("insert into minerstats (poolid,miner,worker,hashrate,sharespersecond,created,ip) values('gor',$1,$2,$3,$4,$5,$6)",wa, wn, rate, 0, now, upt)
         		if err != nil {fmt.Printf("%s",err)}
@@ -387,7 +409,9 @@ func (sh *shareHandler) startStatsThread() error {
 		log.Println(str)
 
         _, err :=db.DB.Exec("insert into poolstats (poolid, connectedminers, poolhashrate, sharespersecond, networkhashrate, networkdifficulty, lastnetworkblocktime, blockheight, connectedpeers, created) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", "gor",mn,totalRate,4,5,6,now,8,9,now)
-        checkError(err)
+    if err != nil {
+	panic(err)
+    }
 	
 }
 }
