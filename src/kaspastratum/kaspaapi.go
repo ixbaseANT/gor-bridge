@@ -58,18 +58,18 @@ func (ks *KaspaApi) startStatsThread(ctx context.Context) {
 				continue
 			}
 			RecordNetworkStats(response.NetworkHashesPerSecond, dagResponse.BlockCount, dagResponse.Difficulty)
-//	    db, err := sql.Open("postgres", connectionString)
         rows,err := db.DB.Query("select id from poolstats order by id desc limit 1")
         checkError(err)
         defer rows.Close()
         var idd int
-        for rows.Next() {
-           	err=rows.Scan(&idd)
-        	checkError(err)
-        }
-        _,err=db.DB.Exec("update poolstats set blockheight=$1, networkdifficulty=$2, networkhashrate=$3 where id>=$4", dagResponse.BlockCount, dagResponse.Difficulty, response.NetworkHashesPerSecond, idd)
+        rows.Next()
+	err=rows.Scan(&idd)
+	checkError(err)
+	p1:=dagResponse.BlockCount
+	p2:=dagResponse.Difficulty
+	p3:=response.NetworkHashesPerSecond
+        _,err=db.DB.Exec("update poolstats set blockheight=$1, networkdifficulty=$2, networkhashrate=$3 where id>=$4", p1, p2, p3, idd)
         checkError(err)
-//        defer db.Close()
 		}
 	}
 }

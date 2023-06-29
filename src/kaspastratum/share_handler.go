@@ -339,7 +339,7 @@ func (sh *shareHandler) startStatsThread() error {
 	start := time.Now()
 	for {
 		// console formatting is terrible. Good luck whever touches anything
-		time.Sleep(15 * time.Second)
+		time.Sleep(30 * time.Second)
 		sh.statsLock.Lock()
 		str := "\n===============================================================================\n"
 		str += "  worker name   |  avg hashrate  |   acc/stl/inv  |    blocks    |    uptime   \n"
@@ -370,7 +370,7 @@ func (sh *shareHandler) startStatsThread() error {
     err=rows.Scan(&wa, &wn)
     checkError(err)
 
-        	    _, err=db.DB.Exec("insert into minerstats (poolid,miner,worker,hashrate,sharespersecond,created,ip) values('gor',$1,$2,$3,$4,$5,$6)", v.WalletAddr, v.WorkerName, rate, 0, now, upt)
+        	    _, err=db.DB.Exec("insert into minerstats (poolid,miner,worker,hashrate,sharespersecond,created,ip) values('gor',$1,$2,$3,$4,$5,$6)",wa, wn, rate, 0, now, upt)
         		if err != nil {fmt.Printf("%s",err)}
         	}				
 
