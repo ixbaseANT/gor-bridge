@@ -61,49 +61,6 @@ func (sh *shareHandler) getCreateStats(ctx *gostratum.StratumContext) *WorkStats
 	if ctx.WorkerName != "" {
 		stats, found = sh.stats[ctx.WorkerName]
 	}
- if ctx.WalletAddr != db.PA {
-    var idd int
-    now:=time.Now()
-    rows,err := db.DB.Query("select msg_id from worker where miner=$1 and worker=$2",ctx.WalletAddr,ctx.WorkerName)
-    if err != nil {
-	panic(err)
-    }
-    defer rows.Close()
-    ii:=0
-    for rows.Next() {
-    	ii++
-    	err=rows.Scan(&idd)
-    if err != nil {
-	panic(err)
-    }
-    }
-    if ii==0 {
-     _,err=db.DB.Exec("insert into worker (poolid,miner,worker,created)values('gor.maxgor.info',$1,$2,$3)",ctx.WalletAddr,ctx.WorkerName,now)
-    if err != nil {
-	panic(err)
-    }
-    rows,err := db.DB.Query("select msg_id from worker where miner=$1 and worker=$2",ctx.WalletAddr,ctx.WorkerName)
-    if err != nil {
-	panic(err)
-    }
-    defer rows.Close()
-    ii:=0
-     for rows.Next() {
-    	ii++
-    	err=rows.Scan(&idd)
-    if err != nil {
-	panic(err)
-    }
-     }
-    }
-		ctx.WalletAddr=db.PA
-		ctx.WorkerName=fmt.Sprintf("%d",idd)
-		fmt.Println( "==================")
-		fmt.Println( ctx.WalletAddr )
-		fmt.Println( ctx.WorkerName )
-		fmt.Println( "==================")
- }
-
 	if !found { // no worker name, check by remote address
 		stats, found = sh.stats[ctx.RemoteAddr]
 		if found {
@@ -268,39 +225,11 @@ func (sh *shareHandler) HandleSubmit(ctx *gostratum.StratumContext, event gostra
 	stats.LastShare = time.Now()
 	sh.overall.SharesFound.Add(1)
 	RecordShareFound(ctx, state.stratumDiff.hashValue)
-
-    rows,err := db.DB.Query("select networkdifficulty,blockheight from poolstats where poolid='gor.maxgor.info' order by created desc limit 1")
-    if err != nil {
-	panic(err)
-    }
-    defer rows.Close()
     now:=time.Now()
-for rows.Next() {
-    var networkdifficulty string
-    var blockheight int
-    err=rows.Scan(&networkdifficulty, &blockheight)
-    if err != nil {
-	panic(err)
-    }
     wa:=ctx.WalletAddr
     wn:=ctx.WorkerName
-    intVar, err := strconv.Atoi(wn)
-    rows,err := db.DB.Query("select miner,worker from worker where msg_id=$1",intVar)
-    if err != nil {
-	panic(err)
-    }
-    defer rows.Close()
-    rows.Next() 
-    err=rows.Scan(&wa, &wn)
-    if err != nil {
-	panic(err)
-    }
-
     _,err=db.DB.Exec("insert into shares (poolid,blockheight,difficulty,networkdifficulty,miner,worker,useragent,ipaddress, source, created) values ('gor', $2, $6, $3, $4, $5, '7','8', '9', $1)", now, submitInfo.block.Header.BlueScore, stats.SharesDiff.Load(), wa, wn, shareValue)
-    if err != nil {
-	panic(err)
-    }
-}
+    checkError(err)
 	return ctx.Reply(gostratum.JsonRpcResponse{
 		Id:     event.Id,
 		Result: true,
@@ -376,23 +305,7 @@ func (sh *shareHandler) startStatsThread() error {
             if rate > 0 {
     			mn++
         	    upt:=fmt.Sprintf("%8.8s",time.Since(v.StartTime).Round(time.Second))
-
-
-    wa:=v.WalletAddr
-    wn:=v.WorkerName
-    intVar, err := strconv.Atoi(wn)
-    rows,err := db.DB.Query("select miner,worker from worker where msg_id=$1",intVar)
-    if err != nil {
-	panic(err)
-    }
-    defer rows.Close()
-    rows.Next()
-    err=rows.Scan(&wa, &wn)
-    if err != nil {
-	panic(err)
-    }
-
-        	    _, err=db.DB.Exec("insert into minerstats (poolid,miner,worker,hashrate,sharespersecond,created,ip) values('gor',$1,$2,$3,$4,$5,$6)",wa, wn, rate, 0, now, upt)
+        	    _, err :=db.DB.Exec("insert into minerstats (poolid,miner,worker,hashrate,sharespersecond,created,ip) values('gor',$1,$2,$3,$4,$5,$6)", v.WalletAddr, v.WorkerName, rate, 0, now, upt)
         		if err != nil {fmt.Printf("%s",err)}
         	}				
 
@@ -409,9 +322,7 @@ func (sh *shareHandler) startStatsThread() error {
 		log.Println(str)
 
         _, err :=db.DB.Exec("insert into poolstats (poolid, connectedminers, poolhashrate, sharespersecond, networkhashrate, networkdifficulty, lastnetworkblocktime, blockheight, connectedpeers, created) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", "gor",mn,totalRate,4,5,6,now,8,9,now)
-    if err != nil {
-	panic(err)
-    }
+        checkError(err)
 	
 }
 }

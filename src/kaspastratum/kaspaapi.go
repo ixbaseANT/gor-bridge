@@ -62,9 +62,10 @@ func (ks *KaspaApi) startStatsThread(ctx context.Context) {
         checkError(err)
         defer rows.Close()
         var idd int
-        rows.Next()
+for rows.Next() {
 	err=rows.Scan(&idd)
 	checkError(err)
+}
 	p1:=dagResponse.BlockCount
 	p2:=dagResponse.Difficulty
 	p3:=response.NetworkHashesPerSecond
